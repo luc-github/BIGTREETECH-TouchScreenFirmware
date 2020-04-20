@@ -162,6 +162,39 @@ void sendQueueCmd(void)
       switch(cmd)
       {
 
+        case 20:
+            if ((strncmp("M20 SD:", infoCmd.queue[infoCmd.index_r].gcode, strlen("M20 SD:")) == 0) || (strncmp("M20 U:", infoCmd.queue[infoCmd.index_r].gcode, strlen("M20 U:")) == 0))   {
+                if(strncmp("M20 SD:", infoCmd.queue[infoCmd.index_r].gcode, strlen("M20 SD:")) == 0) infoFile.source = TFT_SD;
+                else infoFile.source = TFT_UDISK;
+                strncpy(infoFile.title, &infoCmd.queue[infoCmd.index_r].gcode[4], MAX_PATH_LEN);
+                  // strip out any checksum that might be in the string
+                  for (int i = 0; i < MAX_PATH_LEN && infoFile.title[i] !=0 ; i++)
+                  {
+                    if ((infoFile.title[i] == '*') || (infoFile.title[i] == '\n') ||(infoFile.title[i] == '\r'))
+                    {
+                      infoFile.title[i] = 0;
+                      break;
+                    }
+                  }
+                 Serial_Puts(SERIAL_PORT_2/*infoCmd.queue[infoCmd.index_r].src*/, "Begin file list\n");
+                 if (mountFS() == true && scanPrintFiles() == true){
+                     for (uint i = 0; i < infoFile.f_num; i++) {
+                        Serial_Puts(SERIAL_PORT_2/*infoCmd.queue[infoCmd.index_r].src*/,infoFile.file[i]);
+                        Serial_Puts(SERIAL_PORT_2/*infoCmd.queue[infoCmd.index_r].src*/,"\n");
+                    } 
+                    for (uint i = 0; i < infoFile.F_num; i++) {
+                        Serial_Puts(SERIAL_PORT_2/*infoCmd.queue[infoCmd.index_r].src*/,"/");
+                        Serial_Puts(SERIAL_PORT_2/*infoCmd.queue[infoCmd.index_r].src*/,infoFile.folder[i]);
+                        Serial_Puts(SERIAL_PORT_2/*infoCmd.queue[infoCmd.index_r].src*/,"/\n");
+                    } 
+                }
+                Serial_Puts(SERIAL_PORT_2/*infoCmd.queue[infoCmd.index_r].src*/, "End file list\nok\n");
+                infoCmd.count--;
+                infoCmd.index_r = (infoCmd.index_r + 1) % CMD_MAX_LIST;
+                return;
+            }
+            break;
+            
         case 92: //M92 Steps per unit
           if(cmd_seen('X')) setParameter(P_STEPS_PER_MM, X_AXIS, cmd_float());
           if(cmd_seen('Y')) setParameter(P_STEPS_PER_MM, Y_AXIS, cmd_float());
