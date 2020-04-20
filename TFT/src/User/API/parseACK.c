@@ -386,7 +386,6 @@ void parseACK(void)
     {
       Serial_Puts(ack_cur_src, dmaL2Cache);
     }
-    else if (!ack_seen("ok"))
     {
       // make sure we pass on spontaneous messages to all connected ports (since these can come unrequested)
       for (int port = 0; port < _UART_CNT; port++)
