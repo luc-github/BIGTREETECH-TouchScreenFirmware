@@ -33,6 +33,12 @@ static float cmd_float(void)
   return (strtod(&infoCmd.queue[infoCmd.index_r].gcode[cmd_index], NULL));
 }
 
+//check if 'string' start with 'search'
+bool static  startsWith(TCHAR* search, TCHAR* string) 
+{
+    return (strncmp(search, string, strlen(search)) == 0)?true: false;
+}
+
 // Store gcode cmd to infoCmd queue, this cmd will be sent by UART in sendQueueCmd(),
 // If the infoCmd queue is full, reminde in title bar.
 bool storeCmd(const char * format,...)
@@ -161,40 +167,92 @@ void sendQueueCmd(void)
       cmd = cmd_value();
       switch(cmd)
       {
-
+#ifdef SERIAL_PORT_2
         case 20:
-            if ((strncmp("M20 SD:", infoCmd.queue[infoCmd.index_r].gcode, strlen("M20 SD:")) == 0) || (strncmp("M20 U:", infoCmd.queue[infoCmd.index_r].gcode, strlen("M20 U:")) == 0))   {
-                if(strncmp("M20 SD:", infoCmd.queue[infoCmd.index_r].gcode, strlen("M20 SD:")) == 0) infoFile.source = TFT_SD;
-                else infoFile.source = TFT_UDISK;
-                strncpy(infoFile.title, &infoCmd.queue[infoCmd.index_r].gcode[4], MAX_PATH_LEN);
-                  // strip out any checksum that might be in the string
-                  for (int i = 0; i < MAX_PATH_LEN && infoFile.title[i] !=0 ; i++)
-                  {
-                    if ((infoFile.title[i] == '*') || (infoFile.title[i] == '\n') ||(infoFile.title[i] == '\r'))
-                    {
-                      infoFile.title[i] = 0;
-                      break;
-                    }
-                  }
-                 Serial_Puts(SERIAL_PORT_2/*infoCmd.queue[infoCmd.index_r].src*/, "Begin file list\n");
-                 if (mountFS() == true && scanPrintFiles() == true){
-                     for (uint i = 0; i < infoFile.f_num; i++) {
-                        Serial_Puts(SERIAL_PORT_2/*infoCmd.queue[infoCmd.index_r].src*/,infoFile.file[i]);
-                        Serial_Puts(SERIAL_PORT_2/*infoCmd.queue[infoCmd.index_r].src*/,"\n");
-                    } 
-                    for (uint i = 0; i < infoFile.F_num; i++) {
-                        Serial_Puts(SERIAL_PORT_2/*infoCmd.queue[infoCmd.index_r].src*/,"/");
-                        Serial_Puts(SERIAL_PORT_2/*infoCmd.queue[infoCmd.index_r].src*/,infoFile.folder[i]);
-                        Serial_Puts(SERIAL_PORT_2/*infoCmd.queue[infoCmd.index_r].src*/,"/\n");
-                    } 
+          if (startsWith("M20 SD:", infoCmd.queue[infoCmd.index_r].gcode) ||startsWith("M20 U:", infoCmd.queue[infoCmd.index_r].gcode))   {
+            if(startsWith("M20 SD:", infoCmd.queue[infoCmd.index_r].gcode)) infoFile.source = TFT_SD;
+            else infoFile.source = TFT_UDISK;
+            strncpy(infoFile.title, &infoCmd.queue[infoCmd.index_r].gcode[4], MAX_PATH_LEN);
+            // strip out any checksum that might be in the string
+            for (int i = 0; i < MAX_PATH_LEN && infoFile.title[i] !=0 ; i++)
+              {
+                if ((infoFile.title[i] == '*') || (infoFile.title[i] == '\n') ||(infoFile.title[i] == '\r'))
+                {
+                  infoFile.title[i] = 0;
+                  break;
                 }
-                Serial_Puts(SERIAL_PORT_2/*infoCmd.queue[infoCmd.index_r].src*/, "End file list\nok\n");
-                infoCmd.count--;
-                infoCmd.index_r = (infoCmd.index_r + 1) % CMD_MAX_LIST;
-                return;
+              }
+            Serial_Puts(SERIAL_PORT_2, "Begin file list\n");
+            if (mountFS() == true && scanPrintFiles() == true){
+              for (uint i = 0; i < infoFile.f_num; i++) {
+                Serial_Puts(SERIAL_PORT_2,infoFile.file[i]);
+                Serial_Puts(SERIAL_PORT_2,"\n");
+                } 
+              for (uint i = 0; i < infoFile.F_num; i++) {
+                Serial_Puts(SERIAL_PORT_2,"/");
+                Serial_Puts(SERIAL_PORT_2,infoFile.folder[i]);
+                Serial_Puts(SERIAL_PORT_2,"/\n");
+                } 
             }
-            break;
-            
+            Serial_Puts(SERIAL_PORT_2, "End file list\nok\n");
+            infoCmd.count--;
+            infoCmd.index_r = (infoCmd.index_r + 1) % CMD_MAX_LIST;
+            return;
+            }
+          break;
+
+        case 23:
+          if (startsWith("M23 SD:", infoCmd.queue[infoCmd.index_r].gcode) || startsWith("M23 U:", infoCmd.queue[infoCmd.index_r].gcode))   {
+            if(startsWith("M23 SD:", infoCmd.queue[infoCmd.index_r].gcode)) infoFile.source = TFT_SD;
+            else infoFile.source = TFT_UDISK;
+            resetInfoFile();
+            strncpy(infoFile.title, &infoCmd.queue[infoCmd.index_r].gcode[4], MAX_PATH_LEN);
+            // strip out any checksum that might be in the string
+            for (int i = 0; i < MAX_PATH_LEN && infoFile.title[i] !=0 ; i++)
+              {
+                if ((infoFile.title[i] == '*') || (infoFile.title[i] == '\n') ||(infoFile.title[i] == '\r'))
+                {
+                  infoFile.title[i] = 0;
+                  break;
+                }
+              }
+            Serial_Puts(SERIAL_PORT_2, "echo:Now fresh file: ");
+            Serial_Puts(SERIAL_PORT_2, infoFile.title);
+            Serial_Puts(SERIAL_PORT_2, "\n");
+            FIL tmp;
+            if (mountFS() && (f_open(&tmp, infoFile.title, FA_OPEN_EXISTING | FA_READ) == FR_OK) ){
+                char buf[10];
+                my_sprintf(buf, "%d", f_size(&tmp));
+                Serial_Puts(SERIAL_PORT_2, "File opened: ");
+                Serial_Puts(SERIAL_PORT_2, infoFile.title);
+                Serial_Puts(SERIAL_PORT_2, " Size: ");
+                Serial_Puts(SERIAL_PORT_2, buf);
+                Serial_Puts(SERIAL_PORT_2, "\nFile selected\n");
+                f_close(&tmp);
+            }else{
+                Serial_Puts(SERIAL_PORT_2, "open failed, File: ");
+                Serial_Puts(SERIAL_PORT_2, infoFile.title);
+                Serial_Puts(SERIAL_PORT_2, "\n");
+            }
+            Serial_Puts(SERIAL_PORT_2, "ok\n");
+            infoCmd.count--;
+            infoCmd.index_r = (infoCmd.index_r + 1) % CMD_MAX_LIST;
+            return;
+          }
+         break;
+
+        case 24:
+          if ((infoFile.source == TFT_UDISK) || (infoFile.source == TFT_SD)){
+            Serial_Puts(SERIAL_PORT_2, "ok\n");
+            infoCmd.count--;
+            infoCmd.index_r = (infoCmd.index_r + 1) % CMD_MAX_LIST;
+            infoMenu.cur = 1;
+            menuBeforePrinting();
+            return;
+          }
+          break;
+#endif
+
         case 92: //M92 Steps per unit
           if(cmd_seen('X')) setParameter(P_STEPS_PER_MM, X_AXIS, cmd_float());
           if(cmd_seen('Y')) setParameter(P_STEPS_PER_MM, Y_AXIS, cmd_float());
