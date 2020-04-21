@@ -251,6 +251,24 @@ void sendQueueCmd(void)
             return;
           }
           break;
+       case 115:
+        if (startsWith("M115 TFT", infoCmd.queue[infoCmd.index_r].gcode))   {
+            char buf[50];
+            Serial_Puts(SERIAL_PORT_2, "FIRMWARE_NAME: " FIRMWARE_NAME " SOURCE_CODE_URL:https://github.com/luc-github/BIGTREETECH-TouchScreenFirmware/tree/esp3d-support\n");
+            my_sprintf(buf, "Cap:TOOL_NUM:%d\n", TOOL_NUM);
+            Serial_Puts(SERIAL_PORT_2, buf);
+            my_sprintf(buf, "Cap:EXTRUDER_NUM:%d\n", EXTRUDER_NUM);
+            Serial_Puts(SERIAL_PORT_2, buf);
+            my_sprintf(buf, "Cap:FAN_NUM:%d\n", FAN_NUM);
+            Serial_Puts(SERIAL_PORT_2, buf);
+            Serial_Puts(SERIAL_PORT_2, "ok\n");
+            infoCmd.count--;
+            infoCmd.index_r = (infoCmd.index_r + 1) % CMD_MAX_LIST;
+            infoMenu.cur = 1;
+            menuBeforePrinting();
+            return;
+          }
+          break;
 #endif
 
         case 92: //M92 Steps per unit
