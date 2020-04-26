@@ -168,7 +168,7 @@ void sendQueueCmd(void)
       switch(cmd)
       {
 #ifdef SERIAL_PORT_2
-        case 20:
+        case 20: //M20
           if (startsWith("M20 SD:", infoCmd.queue[infoCmd.index_r].gcode) ||startsWith("M20 U:", infoCmd.queue[infoCmd.index_r].gcode))   {
             if(startsWith("M20 SD:", infoCmd.queue[infoCmd.index_r].gcode)) infoFile.source = TFT_SD;
             else infoFile.source = TFT_UDISK;
@@ -201,7 +201,7 @@ void sendQueueCmd(void)
             }
           break;
 
-        case 23:
+        case 23: //M23
           if (startsWith("M23 SD:", infoCmd.queue[infoCmd.index_r].gcode) || startsWith("M23 U:", infoCmd.queue[infoCmd.index_r].gcode))   {
             if(startsWith("M23 SD:", infoCmd.queue[infoCmd.index_r].gcode)) infoFile.source = TFT_SD;
             else infoFile.source = TFT_UDISK;
@@ -239,20 +239,83 @@ void sendQueueCmd(void)
             infoCmd.index_r = (infoCmd.index_r + 1) % CMD_MAX_LIST;
             return;
           }
-         break;
+          break;
 
-        case 24:
+        case 24: //M24
           if ((infoFile.source == TFT_UDISK) || (infoFile.source == TFT_SD)){
-            Serial_Puts(SERIAL_PORT_2, "ok\n");
-            infoCmd.count--;
-            infoCmd.index_r = (infoCmd.index_r + 1) % CMD_MAX_LIST;
-            infoMenu.cur = 1;
-            menuBeforePrinting();
+             if (isPause()) {
+              setPrintPause(false, false);
+            } else {
+                Serial_Puts(SERIAL_PORT_2, "ok\n");
+                infoCmd.count--;
+                infoCmd.index_r = (infoCmd.index_r + 1) % CMD_MAX_LIST;
+                infoMenu.cur = 1;
+                menuBeforePrinting();
+            }
             return;
           }
           break;
-       case 115:
-        if (startsWith("M115 TFT", infoCmd.queue[infoCmd.index_r].gcode))   {
+
+        case 25: //M25
+          if (isPrinting() && !infoHost.printing){
+            setPrintPause(true, false);
+            Serial_Puts(SERIAL_PORT_2, "ok\n");
+            infoCmd.count--;
+            infoCmd.index_r = (infoCmd.index_r + 1) % CMD_MAX_LIST;
+            return;
+            }
+          break;
+
+        case 27: //M27
+            if (isPrinting() && !infoHost.printing){
+                if (cmd_seen('C')){
+                     Serial_Puts(SERIAL_PORT_2, "Current file: ");
+                     Serial_Puts(SERIAL_PORT_2, infoFile.title);
+                      Serial_Puts(SERIAL_PORT_2, ".\n");
+                    }
+                 char buf[55];
+                 my_sprintf(buf, "%s printing byte %d/%d\n",(infoFile.source==TFT_SD)?"TFT SD":"TFT USB", getPrintCur(),getPrintSize());
+                 Serial_Puts(SERIAL_PORT_2, buf);
+                 Serial_Puts(SERIAL_PORT_2, "ok\n");
+                 infoCmd.count--;
+                 infoCmd.index_r = (infoCmd.index_r + 1) % CMD_MAX_LIST;
+                 return;
+            } 
+          break;
+
+        case 30: //M30
+          if (startsWith("M30 SD:", infoCmd.queue[infoCmd.index_r].gcode) || startsWith("M30 U:", infoCmd.queue[infoCmd.index_r].gcode))   {
+            if(startsWith("M30 SD:", infoCmd.queue[infoCmd.index_r].gcode)) infoFile.source = TFT_SD;
+            else infoFile.source = TFT_UDISK;
+            TCHAR filepath[MAX_PATH_LEN];
+            strncpy(filepath, &infoCmd.queue[infoCmd.index_r].gcode[4], MAX_PATH_LEN);
+            // strip out any checksum that might be in the string
+            for (int i = 0; i < MAX_PATH_LEN && filepath[i] !=0 ; i++)
+              {
+                if ((filepath[i] == '*') || (filepath[i] == '\n') ||(filepath[i] == '\r'))
+                {
+                  filepath[i] = 0;
+                  break;
+                }
+              }
+            if ((mountFS() == true) && (f_unlink (filepath)== FR_OK)) {
+                Serial_Puts(SERIAL_PORT_2, "File deleted: ");
+                Serial_Puts(SERIAL_PORT_2, filepath);
+                Serial_Puts(SERIAL_PORT_2, ".\nok\n");
+            } else {
+                Serial_Puts(SERIAL_PORT_2, "Deletion failed, File: ");
+                Serial_Puts(SERIAL_PORT_2, filepath);
+                Serial_Puts(SERIAL_PORT_2, ".\nok\n");
+            }
+
+            infoCmd.count--;
+            infoCmd.index_r = (infoCmd.index_r + 1) % CMD_MAX_LIST;
+            return;
+          }
+          break;
+
+        case 115: //M115 TFT
+          if (startsWith("M115 TFT", infoCmd.queue[infoCmd.index_r].gcode)) {
             char buf[50];
             Serial_Puts(SERIAL_PORT_2, "FIRMWARE_NAME: " FIRMWARE_NAME " SOURCE_CODE_URL:https://github.com/luc-github/BIGTREETECH-TouchScreenFirmware/tree/esp3d-support\n");
             my_sprintf(buf, "Cap:TOOL_NUM:%d\n", TOOL_NUM);
@@ -268,6 +331,16 @@ void sendQueueCmd(void)
             menuBeforePrinting();
             return;
           }
+          break;
+
+        case 524: //M524 
+          if (isPrinting() && !infoHost.printing){
+            abortPrinting();
+            Serial_Puts(SERIAL_PORT_2, "ok\n");
+            infoCmd.count--;
+            infoCmd.index_r = (infoCmd.index_r + 1) % CMD_MAX_LIST;
+            return;
+            }
           break;
 #endif
 
