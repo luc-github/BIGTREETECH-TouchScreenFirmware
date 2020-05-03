@@ -7,6 +7,8 @@ QUEUE infoCacheCmd;  // Only when heatHasWaiting() is false the cmd in this cach
 
 static u8 cmd_index=0;
 
+static bool ispolling = true;
+
 // Is there a code character in the current gcode command.
 static bool cmd_seen(char code)
 {
@@ -283,6 +285,15 @@ void sendQueueCmd(void)
             } 
           break;
 
+        case 28: //M28
+            ispolling = false;
+            break;
+
+        case 29: //M29
+            storeCmd("M105\nM114\nM220\nM221\n");
+            ispolling = true;
+            break;
+
         case 30: //M30
           if (startsWith("M30 SD:", infoCmd.queue[infoCmd.index_r].gcode) || startsWith("M30 U:", infoCmd.queue[infoCmd.index_r].gcode))   {
             if(startsWith("M30 SD:", infoCmd.queue[infoCmd.index_r].gcode)) infoFile.source = TFT_SD;
@@ -453,6 +464,11 @@ void sendQueueCmd(void)
   }
   else
   {
+      if (!ispolling) { //ignore any query from TFT 
+            infoCmd.count--;
+            infoCmd.index_r = (infoCmd.index_r + 1) % CMD_MAX_LIST;
+            return;
+      }
     // this command originated with the TFT
     switch(infoCmd.queue[infoCmd.index_r].gcode[0])
     {
